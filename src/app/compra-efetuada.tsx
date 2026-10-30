@@ -1,15 +1,18 @@
-import { ComponentProps } from 'react';
+import { ComponentProps, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import MenuLateral from '../components/MenuLateral';
 import Botao from '../components/Botao';
+import EstadoCarregamento from '../components/EstadoCarregamento';
 import { useAppTheme } from '../theme/ThemeContext';
-
-// TODO: dados de exemplo (iguais ao HTML); com o backend, vêm do pedido criado
-const compra = { data: '12/09/2027 - 10:30', pedido: '003' };
+import { useExigirLogin } from '../auth/useExigirLogin';
+import { useAuth } from '../auth/AuthContext';
+import { buscarPedido } from '../services/pedidoService';
+import { formatarDataHora } from '../utils/formatar';
+import { Pedido } from '../types/pedido';
 
 type Icone = ComponentProps<typeof MaterialIcons>['name'];
 
@@ -32,8 +35,28 @@ export default function CompraEfetuada() {
   const { colors, fs } = useAppTheme();
   const router = useRouter();
   const { height } = useWindowDimensions();
+  useExigirLogin();
+  const { logado } = useAuth();
+  const { pedidoId } = useLocalSearchParams<{ pedidoId: string }>();
+  const id = Number(pedidoId);
 
-  const voltar = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  const [pedido, setPedido] = useState<Pedido | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const carregar = () => {
+    if (!logado || !id) return;
+    setCarregando(true);
+    setErro(null);
+    buscarPedido(id)
+      .then(setPedido)
+      .catch((e) => setErro(e.message))
+      .finally(() => setCarregando(false));
+  };
+
+  useEffect(() => {
+    carregar();
+  }, [logado, id]);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
@@ -41,56 +64,69 @@ export default function CompraEfetuada() {
 
       <ScrollView>
         <View style={{ padding: 20 }}>
-          <MenuLateral links={[{ titulo: '< Voltar', onPress: voltar }]} />
+          <MenuLateral
+            links={[
+              { titulo: 'Página inicial', onPress: () => router.replace('/') },
+              { titulo: 'Histórico de reservas', onPress: () => router.replace('/historico-reservas' as any) },
+            ]}
+          />
 
-          <View
-            style={{
-              backgroundColor: colors.surfaceAlt,
-              borderWidth: 1,
-              borderColor: colors.borderSoft,
-              borderRadius: 15,
-              padding: 15,
-              minHeight: height * 0.7,
-            }}
-          >
-            {/* Confirmação */}
+          <EstadoCarregamento carregando={carregando} erro={erro} onTentar={carregar} />
+
+          {pedido && (
             <View
               style={{
-                alignItems: 'center',
-                borderBottomWidth: 1,
-                borderBottomColor: colors.borderSoft,
-                paddingBottom: 30,
-                marginBottom: 30,
+                backgroundColor: colors.surfaceAlt,
+                borderWidth: 1,
+                borderColor: colors.borderSoft,
+                borderRadius: 15,
+                padding: 15,
+                minHeight: height * 0.7,
               }}
             >
-              <View style={[s.circulo, { backgroundColor: colors.successLight }]}>
-                <MaterialIcons name="check" size={fs(30)} color={colors.successIcon} />
-              </View>
-              <Text
+              {/* Confirmação */}
+              <View
                 style={{
-                  color: colors.text, fontWeight: 'bold', fontSize: fs(24),
-                  textAlign: 'center', marginBottom: 25,
+                  alignItems: 'center',
+                  borderBottomWidth: 1,
+                  borderBottomColor: colors.borderSoft,
+                  paddingBottom: 30,
+                  marginBottom: 30,
                 }}
               >
-                Compra concluída com sucesso!
-              </Text>
-              <Text style={{ color: colors.text, fontSize: fs(16), textAlign: 'center' }}>
-                Sua compra foi confirmada e será processada em breve
-              </Text>
-            </View>
+                <View style={[s.circulo, { backgroundColor: colors.successLight }]}>
+                  <MaterialIcons name="check" size={fs(30)} color={colors.successIcon} />
+                </View>
+                <Text
+                  style={{
+                    color: colors.text, fontWeight: 'bold', fontSize: fs(24),
+                    textAlign: 'center', marginBottom: 25,
+                  }}
+                >
+                  Compra concluída com sucesso!
+                </Text>
+                <Text style={{ color: colors.text, fontSize: fs(16), textAlign: 'center' }}>
+                  Sua compra foi confirmada. Você pode gerar a nota fiscal pelo histórico.
+                </Text>
+              </View>
 
-            {/* Informações da compra */}
-            <View style={s.info}>
-              <InfoItem icone="date-range" titulo="Data da compra" valor={compra.data} />
-              <InfoItem icone="badge" titulo="ID do pedido" valor={compra.pedido} />
-            </View>
+              {/* Informações da compra */}
+              <View style={s.info}>
+                <InfoItem
+                  icone="date-range"
+                  titulo="Data da compra"
+                  valor={formatarDataHora(pedido.dataPagamento ?? pedido.dataEfetivacao)}
+                />
+                <InfoItem icone="badge" titulo="ID do pedido" valor={String(pedido.pedidoId)} />
+              </View>
 
-            <Botao
-              titulo="IR PARA A PÁGINA INICIAL"
-              variante="largo"
-              onPress={() => router.replace('/')}
-            />
-          </View>
+              <Botao
+                titulo="IR PARA A PÁGINA INICIAL"
+                variante="largo"
+                onPress={() => router.replace('/')}
+              />
+            </View>
+          )}
         </View>
 
         <Footer />

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Header from '../components/Header';
@@ -9,29 +10,32 @@ import EstadoCarregamento from '../components/EstadoCarregamento';
 import ServicosPacote, { Paragrafo } from '../components/ServicosPacote';
 import ListaInclusos from '../components/ListaInclusos';
 import { useAppTheme } from '../theme/ThemeContext';
-import { usePacote } from '../hooks/usePacotes';
-import { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
+import { usePacote } from '../hooks/usePacotes';
+import { criarPedido, FormaApi } from '../services/pedidoService';
 import { descricaoDoPacote, formatarPreco, inclusosDoPacote } from '../utils/formatar';
 
 const FORMAS = ['Débito', 'Crédito', 'Pix'];
 const PARCELAS = ['1', '2', '3', '4', '5', '6', '7', '8'];
+const FORMA_API: Record<string, FormaApi> = { 'Débito': 'Debito', 'Crédito': 'Credito', Pix: 'Pix' };
 
 export default function RevisaoCompra() {
   const { colors, fs } = useAppTheme();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { logado, iniciando, sair } = useAuth();
+  const { dados: pacote, carregando, erro, recarregar } = usePacote(Number(id));
+  const [pagamento, setPagamento] = useState('Débito');
+  const [parcelas, setParcelas] = useState('1');
+  const [enviando, setEnviando] = useState(false);
+  const [erroPedido, setErroPedido] = useState('');
 
+  // Barreira: quem não está logado vai para o login e volta para cá
   useEffect(() => {
     if (!iniciando && !logado) {
       router.replace({ pathname: '/login', params: { proximo: `/revisao-compra?id=${id}` } } as any);
     }
   }, [iniciando, logado]);
-
-  const { dados: pacote, carregando, erro, recarregar } = usePacote(Number(id));
-  const [pagamento, setPagamento] = useState('Débito');
-  const [parcelas, setParcelas] = useState('1');
 
   const voltar = () => (router.canGoBack() ? router.back() : router.replace('/'));
   const irDetalhes = () =>
@@ -40,9 +44,30 @@ export default function RevisaoCompra() {
       : router.replace({ pathname: '/detalhes-pacote', params: { id: String(id) } } as any);
 
   const sairDaConta = async () => {
-     router.replace('/');
-     await sair();
-   };
+    router.replace('/');
+    await sair();
+  };
+
+  const irParaPagamento = async () => {
+    if (!pacote || enviando) return;
+    setErroPedido('');
+    setEnviando(true);
+    try {
+      const pedido = await criarPedido(
+        pacote.pacoteId,
+        FORMA_API[pagamento],
+        pagamento === 'Crédito' ? Number(parcelas) : 1,
+      );
+      router.push({
+        pathname: '/confirmacao-compra',
+        params: { pedidoId: String(pedido.pedidoId) },
+      } as any);
+    } catch (e: any) {
+      setErroPedido(e.message ?? 'Não foi possível criar o pedido.');
+    } finally {
+      setEnviando(false);
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
@@ -119,18 +144,21 @@ export default function RevisaoCompra() {
 
                 <View style={{ gap: 15, marginTop: 15 }}>
                   <Seletor rotulo="Forma de pagamento" opcoes={FORMAS} valor={pagamento} onChange={setPagamento} />
-                  <Seletor rotulo="Parcelas" opcoes={PARCELAS} valor={parcelas} onChange={setParcelas} />
+                  {pagamento === 'Crédito' && (
+                    <Seletor rotulo="Parcelas" opcoes={PARCELAS} valor={parcelas} onChange={setParcelas} />
+                  )}
                 </View>
 
+                {erroPedido !== '' && (
+                  <Text style={{ color: colors.dangerText, fontSize: fs(14), textAlign: 'center', marginTop: 15 }}>
+                    {erroPedido}
+                  </Text>
+                )}
+
                 <Botao
-                  titulo="IR PARA PAGAMENTO"
+                  titulo={enviando ? 'CRIANDO PEDIDO...' : 'IR PARA PAGAMENTO'}
                   variante="largo"
-                  onPress={() =>
-                    router.push({
-                      pathname: '/confirmacao-compra',
-                      params: { id: String(pacote.pacoteId), pagamento, parcelas },
-                    } as any)
-                  }
+                  onPress={irParaPagamento}
                 />
               </View>
             </View>

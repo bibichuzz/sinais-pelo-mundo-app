@@ -50,3 +50,12 @@ export function inclusosDoPacote(p: PacoteDetalhe): string[] {
   if (p.interprete) itens.push('Intérprete durante todo o período');
   return itens;
 }
+
+export function formatarDataHora(iso: string) {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} - ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+const NOMES_FORMA: Record<string, string> = { Debito: 'Débito', Credito: 'Crédito', Pix: 'Pix' };
+export const nomeFormaPagamento = (f: string) => NOMES_FORMA[f] ?? f;

@@ -13,3 +13,13 @@ export type Pedido = {
   dataCheckout: string | null;
   nomeInterprete: string | null;
 };
+
+export type StatusPagamento = {
+  pago: boolean;
+  cancelado: boolean;
+};
+
+export type NotaFiscal = {
+  nomeArquivo: string;
+  conteudo: string;
+};

@@ -1,4 +1,4 @@
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
@@ -9,7 +9,7 @@ import { useAppTheme } from '../theme/ThemeContext';
 import { useAuth } from '../auth/AuthContext';
 import { useExigirLogin } from '../auth/useExigirLogin';
 import { usePedidos } from '../hooks/usePedidos';
-import { cancelarPedido } from '../services/pedidoService';
+import { cancelarPedido, notaFiscal } from '../services/pedidoService';
 import { formatarData, formatarPreco } from '../utils/formatar';
 import { Pedido } from '../types/pedido';
 
@@ -92,8 +92,14 @@ export default function HistoricoReservas() {
     await sair();
   };
 
-  const gerarNota = () =>
-    Alert.alert('Nota fiscal', 'A nota fiscal estará disponível em breve.');
+  const gerarNota = async (id: number) => {
+    try {
+      const nota = await notaFiscal(id);
+      await Share.share({ title: nota.nomeArquivo, message: nota.conteudo });
+    } catch (e: any) {
+      Alert.alert('Erro', e.message ?? 'Não foi possível gerar a nota fiscal.');
+    }
+  };
 
   const cancelar = (id: number) =>
     Alert.alert('Cancelar reserva', 'Tem certeza que deseja cancelar esta reserva?', [
@@ -154,7 +160,18 @@ export default function HistoricoReservas() {
                       <Botao titulo="Reserva cancelada" variante="desativado" onPress={() => {}} style={estiloAcao} />
                     ) : (
                       <>
-                        <Botao titulo="Gerar Nota Fiscal" variante="sucesso" onPress={gerarNota} style={estiloAcao} />
+                        {p.dataPagamento ? (
+                          <Botao titulo="Gerar Nota Fiscal" variante="sucesso" onPress={() => gerarNota(p.pedidoId)} style={estiloAcao} />
+                        ) : (
+                          <Botao
+                            titulo="Pagar"
+                            variante="sucesso"
+                            onPress={() =>
+                              router.push({ pathname: '/confirmacao-compra', params: { pedidoId: String(p.pedidoId) } } as any)
+                            }
+                            style={estiloAcao}
+                          />
+                        )}
                         <Botao titulo="Cancelar" variante="perigo" onPress={() => cancelar(p.pedidoId)} style={estiloAcao} />
                       </>
                     )}
