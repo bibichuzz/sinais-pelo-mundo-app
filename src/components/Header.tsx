@@ -4,9 +4,11 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/ThemeContext';
+import { useAuth } from '../auth/AuthContext';
 
 export default function Header({ mostrarConta = true }: { mostrarConta?: boolean }) {
   const { colors, isDark, toggleTheme, increaseFont, decreaseFont, fs } = useAppTheme();
+  const { logado, sair } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [menuAberto, setMenuAberto] = useState(false);
@@ -18,6 +20,12 @@ export default function Header({ mostrarConta = true }: { mostrarConta?: boolean
   const ir = (rota: string) => {
     setMenuAberto(false);
     router.push(rota as any);
+  };
+
+  const sairDaConta = async () => {
+    setMenuAberto(false);
+    await sair();
+    router.replace('/');
   };
 
   return (
@@ -63,7 +71,7 @@ export default function Header({ mostrarConta = true }: { mostrarConta?: boolean
             />
           </Pressable>
           {mostrarConta && (
-            <Pressable onPress={() => ir('/login')} hitSlop={8}>
+            <Pressable onPress={() => ir(logado ? '/dados-usuario' : '/login')} hitSlop={8}>
               <MaterialIcons name="account-circle" size={24} color={colors.primary} />
             </Pressable>
           )}
@@ -78,6 +86,11 @@ export default function Header({ mostrarConta = true }: { mostrarConta?: boolean
           <Pressable onPress={() => ir('/catalogo')}>
             <Text style={{ color: colors.primary, fontWeight: 'bold', fontSize: fs(16) }}>Catálogo</Text>
           </Pressable>
+          {logado && (
+            <Pressable onPress={sairDaConta}>
+              <Text style={{ color: colors.primary, fontWeight: 'bold', fontSize: fs(16) }}>Sair</Text>
+            </Pressable>
+          )}
         </View>
       )}
     </View>

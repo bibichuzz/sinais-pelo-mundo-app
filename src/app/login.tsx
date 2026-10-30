@@ -1,41 +1,46 @@
 import { useState } from 'react';
 import {
-  Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import Header from '../components/Header';
 import Botao from '../components/Botao';
+import CampoTexto from '../components/CampoTexto';
 import { useAppTheme } from '../theme/ThemeContext';
+import { useAuth } from '../auth/AuthContext';
 import { proporcaoImagem } from '../utils/imagem';
+import { emailValido } from '../utils/mascaras';
 
 const logo = require('../../assets/img/Logo-tipo.jpg');
 
 export default function Login() {
   const { colors, fs } = useAppTheme();
   const router = useRouter();
+  const { entrar: entrarNaConta } = useAuth();
+  const { proximo } = useLocalSearchParams<{ proximo?: string }>();
+
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
+  const [enviando, setEnviando] = useState(false);
 
   const logoAltura = 80 * proporcaoImagem(logo);
 
-  const entrar = () => {
+  const entrar = async () => {
+    if (enviando) return;
     if (!email.trim() || !senha) return setErro('Preencha email e senha.');
-    if (!email.includes('@')) return setErro('Digite um email válido.');
-    setErro('');
-    // TODO: chamar a API de login quando o backend estiver disponível
-    router.replace('/');
-  };
+    if (!emailValido(email)) return setErro('Digite um email válido.');
 
-  const input = {
-    width: '100%' as const,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.borderInput,
-    borderRadius: 8,
-    color: colors.textSecondary,
-    backgroundColor: colors.input,
-    fontSize: fs(14),
+    setErro('');
+    setEnviando(true);
+    try {
+      await entrarNaConta(email.trim(), senha);
+      router.replace((proximo || '/') as any);
+    } catch (e: any) {
+      setErro(e.message ?? 'Não foi possível entrar.');
+    } finally {
+      setEnviando(false);
+    }
   };
 
   return (
@@ -45,10 +50,7 @@ export default function Login() {
     >
       <Header mostrarConta={false} />
 
-      <ScrollView
-        contentContainerStyle={s.scroll}
-        keyboardShouldPersistTaps="handled"
-      >
+      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         {/* Sombra fica no wrapper de fora porque overflow:hidden corta a sombra */}
         <View style={[s.sombra, { backgroundColor: colors.surfaceAlt }]}>
           <View style={[s.card, { borderColor: colors.borderStrong }]}>
@@ -61,7 +63,12 @@ export default function Login() {
               <Text style={{ color: colors.text, fontSize: fs(14), marginBottom: 30 }}>
                 Crie sua conta agora mesmo
               </Text>
-              <Botao titulo="Cadastrar" onPress={() => router.push('/cadastro' as any)} />
+              <Botao
+                titulo="Cadastrar"
+                onPress={() =>
+                  router.push({ pathname: '/cadastro', params: proximo ? { proximo } : {} } as any)
+                }
+              />
             </View>
 
             {/* Lado direito: formulário */}
@@ -71,20 +78,16 @@ export default function Login() {
               </Text>
 
               <View style={s.form}>
-                <TextInput
-                  style={input}
+                <CampoTexto
                   placeholder="Email"
-                  placeholderTextColor={colors.inputText}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoComplete="email"
                 />
-                <TextInput
-                  style={input}
+                <CampoTexto
                   placeholder="Senha"
-                  placeholderTextColor={colors.inputText}
                   value={senha}
                   onChangeText={setSenha}
                   secureTextEntry
@@ -107,7 +110,11 @@ export default function Login() {
                   </Text>
                 )}
 
-                <Botao titulo="Entrar" onPress={entrar} style={{ marginTop: 20 }} />
+                <Botao
+                  titulo={enviando ? 'Entrando...' : 'Entrar'}
+                  onPress={entrar}
+                  style={{ marginTop: 20 }}
+                />
               </View>
             </View>
           </View>

@@ -52,3 +52,14 @@ export function dataValida(v: string) {
 }
 
 export const emailValido = (v: string) => /\S+@\S+\.\S+/.test(v);
+
+export const mascaraCep = (v: string) =>
+  soNumeros(v)
+    .slice(0, 8)
+    .replace(/(\d{5})(\d)/, '$1-$2');
+
+// "15/03/1995" -> "1995-03-15" (formato que a API espera)
+export const dataParaIso = (v: string) => {
+  const [d, m, a] = v.split('/');
+  return `${a}-${m}-${d}`;
+};

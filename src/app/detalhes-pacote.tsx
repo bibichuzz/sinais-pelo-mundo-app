@@ -9,11 +9,13 @@ import ServicosPacote, { Paragrafo } from '../components/ServicosPacote';
 import ListaInclusos from '../components/ListaInclusos';
 import { useAppTheme } from '../theme/ThemeContext';
 import { usePacote } from '../hooks/usePacotes';
+import { useAuth } from '../auth/AuthContext';
 import { descricaoDoPacote, formatarPreco, inclusosDoPacote } from '../utils/formatar';
 
 export default function DetalhesPacote() {
   const { colors, fs } = useAppTheme();
   const router = useRouter();
+  const { logado } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { dados: pacote, carregando, erro, recarregar } = usePacote(Number(id));
 
@@ -89,9 +91,14 @@ export default function DetalhesPacote() {
                 <Botao
                   titulo="COMPRAR PACOTE"
                   variante="largo"
-                  onPress={() =>
-                    router.push({ pathname: '/revisao-compra', params: { id: String(pacote.pacoteId) } } as any)
-                  }
+                  onPress={() => {
+                    const destino = `/revisao-compra?id=${pacote.pacoteId}`;
+                    if (!logado) {
+                      router.push({ pathname: '/login', params: { proximo: destino } } as any);
+                    } else {
+                      router.push(destino as any);
+                    }
+                  }}
                 />
               </View>
             </View>

@@ -2,21 +2,26 @@ import { useState } from 'react';
 import {
   Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import Header from '../components/Header';
 import Botao from '../components/Botao';
 import CampoTexto from '../components/CampoTexto';
 import { useAppTheme } from '../theme/ThemeContext';
+import { cadastrar } from '../services/authService';
 import { proporcaoImagem } from '../utils/imagem';
 import {
-  cpfValido, dataValida, emailValido, mascaraCpf, mascaraData, mascaraTelefone,
+  cpfValido, dataParaIso, dataValida, emailValido,
+  mascaraCep, mascaraCpf, mascaraData, mascaraTelefone,
 } from '../utils/mascaras';
 
 const logo = require('../../assets/img/Logo-tipo.jpg');
 
+const apenasNumeros = (v: string) => v.replace(/\D/g, '');
+
 export default function Cadastro() {
   const { colors, fs } = useAppTheme();
   const router = useRouter();
+  const { proximo } = useLocalSearchParams<{ proximo?: string }>();
 
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
@@ -24,27 +29,62 @@ export default function Cadastro() {
   const [cpf, setCpf] = useState('');
   const [nascimento, setNascimento] = useState('');
   const [telefone, setTelefone] = useState('');
-  const [endereco, setEndereco] = useState('');
+  const [cep, setCep] = useState('');
+  const [numero, setNumero] = useState('');
+  const [complemento, setComplemento] = useState('');
+  const [bairro, setBairro] = useState('');
+  const [cidade, setCidade] = useState('');
+  const [uf, setUf] = useState('');
   const [erro, setErro] = useState('');
+  const [enviando, setEnviando] = useState(false);
 
   const logoAltura = 80 * proporcaoImagem(logo);
 
-  const irParaLogin = () => (router.canGoBack() ? router.back() : router.replace('/login'));
+  const irParaLogin = () =>
+    router.replace({ pathname: '/login', params: proximo ? { proximo } : {} } as any);
 
-  const cadastrar = () => {
-    if (!nome.trim() || !email.trim() || !senha || !cpf || !nascimento || !telefone || !endereco.trim()) {
-      return setErro('Preencha todos os campos.');
+  const cadastrarConta = async () => {
+    if (enviando) return;
+
+    if (
+      !nome.trim() || !email.trim() || !senha || !cpf || !nascimento || !telefone ||
+      !cep || !numero.trim() || !bairro.trim() || !cidade.trim() || !uf.trim()
+    ) {
+      return setErro('Preencha todos os campos (o complemento é opcional).');
     }
     if (!emailValido(email)) return setErro('Digite um email válido.');
     if (!cpfValido(cpf)) return setErro('CPF inválido.');
     if (!dataValida(nascimento)) return setErro('Data de nascimento inválida (use dd/mm/aaaa).');
-    if (telefone.replace(/\D/g, '').length < 10) return setErro('Telefone inválido.');
+    if (apenasNumeros(telefone).length !== 11) return setErro('Telefone deve ter DDD + 9 dígitos.');
+    if (apenasNumeros(cep).length !== 8) return setErro('CEP deve ter 8 números.');
+    if (uf.trim().length !== 2) return setErro('UF deve ter 2 letras (ex.: SP).');
 
     setErro('');
-    // TODO: enviar os dados para a API de cadastro quando o backend estiver disponível
-    Alert.alert('Cadastro realizado!', 'Agora é só entrar na sua conta.', [
-      { text: 'OK', onPress: irParaLogin },
-    ]);
+    setEnviando(true);
+    try {
+      await cadastrar({
+        nome: nome.trim(),
+        email: email.trim(),
+        senha,
+        cpf: apenasNumeros(cpf),
+        dtNascimento: dataParaIso(nascimento),
+        telefone: apenasNumeros(telefone),
+        cep: apenasNumeros(cep),
+        numero: numero.trim(),
+        complemento: complemento.trim() || null,
+        bairro: bairro.trim(),
+        cidade: cidade.trim(),
+        uf: uf.trim().toUpperCase(),
+      });
+
+      Alert.alert('Cadastro realizado!', 'Agora é só entrar na sua conta.', [
+        { text: 'OK', onPress: irParaLogin },
+      ]);
+    } catch (e: any) {
+      setErro(e.message ?? 'Não foi possível cadastrar.');
+    } finally {
+      setEnviando(false);
+    }
   };
 
   return (
@@ -69,7 +109,7 @@ export default function Cadastro() {
               <Botao titulo="Entrar" onPress={irParaLogin} />
             </View>
 
-            {/* Lado direito: formulário (os rótulos são escondidos no site, só placeholder) */}
+            {/* Lado direito: formulário */}
             <View style={s.lado}>
               <Text style={[s.titulo, { color: colors.text, fontSize: fs(24), marginBottom: 30 }]}>
                 Crie sua conta
@@ -99,7 +139,19 @@ export default function Cadastro() {
                   onChangeText={(v) => setTelefone(mascaraTelefone(v))}
                   keyboardType="phone-pad" maxLength={15} autoComplete="tel"
                 />
-                <CampoTexto placeholder="Endereço" value={endereco} onChangeText={setEndereco} autoComplete="street-address" />
+                <CampoTexto
+                  placeholder="CEP" value={cep} onChangeText={(v) => setCep(mascaraCep(v))}
+                  keyboardType="number-pad" maxLength={9}
+                />
+                <CampoTexto placeholder="Número" value={numero} onChangeText={setNumero} maxLength={15} />
+                <CampoTexto placeholder="Complemento (opcional)" value={complemento} onChangeText={setComplemento} maxLength={60} />
+                <CampoTexto placeholder="Bairro" value={bairro} onChangeText={setBairro} maxLength={60} />
+                <CampoTexto placeholder="Cidade" value={cidade} onChangeText={setCidade} maxLength={60} />
+                <CampoTexto
+                  placeholder="UF (ex.: SP)" value={uf}
+                  onChangeText={(v) => setUf(v.replace(/[^a-zA-Z]/g, '').toUpperCase())}
+                  autoCapitalize="characters" maxLength={2}
+                />
 
                 {erro !== '' && (
                   <Text style={{ color: colors.dangerText, fontSize: fs(14), textAlign: 'center' }}>
@@ -107,7 +159,7 @@ export default function Cadastro() {
                   </Text>
                 )}
 
-                <Botao titulo="Cadastrar" onPress={cadastrar} />
+                <Botao titulo={enviando ? 'Cadastrando...' : 'Cadastrar'} onPress={cadastrarConta} />
               </View>
             </View>
           </View>

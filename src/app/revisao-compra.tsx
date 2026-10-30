@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Header from '../components/Header';
@@ -11,6 +10,8 @@ import ServicosPacote, { Paragrafo } from '../components/ServicosPacote';
 import ListaInclusos from '../components/ListaInclusos';
 import { useAppTheme } from '../theme/ThemeContext';
 import { usePacote } from '../hooks/usePacotes';
+import { useEffect, useState } from 'react';
+import { useAuth } from '../auth/AuthContext';
 import { descricaoDoPacote, formatarPreco, inclusosDoPacote } from '../utils/formatar';
 
 const FORMAS = ['Débito', 'Crédito', 'Pix'];
@@ -20,6 +21,14 @@ export default function RevisaoCompra() {
   const { colors, fs } = useAppTheme();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { logado, iniciando } = useAuth();
+
+  useEffect(() => {
+    if (!iniciando && !logado) {
+      router.replace({ pathname: '/login', params: { proximo: `/revisao-compra?id=${id}` } } as any);
+    }
+  }, [iniciando, logado]);
+
   const { dados: pacote, carregando, erro, recarregar } = usePacote(Number(id));
   const [pagamento, setPagamento] = useState('Débito');
   const [parcelas, setParcelas] = useState('1');
@@ -54,7 +63,7 @@ export default function RevisaoCompra() {
 
           <EstadoCarregamento carregando={carregando} erro={erro} onTentar={recarregar} />
 
-          {pacote && (
+          {logado && pacote && (
             <View style={[s.checkout, { borderColor: colors.borderSoft, backgroundColor: colors.surfaceAlt }]}>
               {/* Imagem + título */}
               <View style={[s.cardPrincipal, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
