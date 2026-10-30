@@ -54,13 +54,12 @@ async function requisitar<T>(
       body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
       signal: controle.signal,
     });
-  } catch (e: any) {
+    } catch (e: any) {
+    console.log('ERRO FETCH:', e);
     if (e?.name === 'AbortError') {
       throw new ApiError('O servidor demorou para responder. Tente novamente.', 0);
     }
-    throw new ApiError('Não foi possível conectar ao servidor.', 0);
-  } finally {
-    clearTimeout(timer);
+    throw new ApiError(`Não foi possível conectar ao servidor. (${e?.message})`, 0);
   }
 
   const texto = await resposta.text();

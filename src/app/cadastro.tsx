@@ -13,6 +13,7 @@ import {
   cpfValido, dataParaIso, dataValida, emailValido,
   mascaraCep, mascaraCpf, mascaraData, mascaraTelefone,
 } from '../utils/mascaras';
+import { buscarCep } from '../services/cepService';
 
 const logo = require('../../assets/img/Logo-tipo.jpg');
 
@@ -37,6 +38,8 @@ export default function Cadastro() {
   const [uf, setUf] = useState('');
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [cepStatus, setCepStatus] = useState('');
+  const [cepOk, setCepOk] = useState(false);
 
   const logoAltura = 80 * proporcaoImagem(logo);
 
@@ -57,6 +60,7 @@ export default function Cadastro() {
     if (!dataValida(nascimento)) return setErro('Data de nascimento inválida (use dd/mm/aaaa).');
     if (apenasNumeros(telefone).length !== 11) return setErro('Telefone deve ter DDD + 9 dígitos.');
     if (apenasNumeros(cep).length !== 8) return setErro('CEP deve ter 8 números.');
+    if (!cepOk) return setErro('Informe um CEP válido.');
     if (uf.trim().length !== 2) return setErro('UF deve ter 2 letras (ex.: SP).');
 
     setErro('');
@@ -86,6 +90,35 @@ export default function Cadastro() {
       setEnviando(false);
     }
   };
+
+  const aoMudarCep = async (valor: string) => {
+  const mascarado = mascaraCep(valor);
+  setCep(mascarado);
+  setCepOk(false);
+
+  if (apenasNumeros(mascarado).length < 8) {
+    setCepStatus('');
+    return;
+  }
+
+  setCepStatus('Buscando CEP...');
+  try {
+    const endereco = await buscarCep(mascarado);
+    if (!endereco) {
+      setCepStatus('CEP não encontrado.');
+      return;
+    }
+    setBairro(endereco.bairro);
+    setCidade(endereco.cidade);
+    setUf(endereco.uf);
+    setCepOk(true);
+    setCepStatus('');
+  } catch {
+    // Sem conseguir consultar, não bloqueia: a pessoa preenche à mão
+    setCepStatus('Não foi possível consultar o CEP. Preencha o endereço manualmente.');
+    setCepOk(true);
+  }
+};
 
   return (
     <KeyboardAvoidingView
@@ -140,9 +173,14 @@ export default function Cadastro() {
                   keyboardType="phone-pad" maxLength={15} autoComplete="tel"
                 />
                 <CampoTexto
-                  placeholder="CEP" value={cep} onChangeText={(v) => setCep(mascaraCep(v))}
+                  placeholder="CEP" value={cep} onChangeText={aoMudarCep}
                   keyboardType="number-pad" maxLength={9}
                 />
+                {cepStatus !== '' && (
+                  <Text style={{ color: cepOk ? colors.textSecondary : colors.dangerText, fontSize: fs(13) }}>
+                    {cepStatus}
+                  </Text>
+                )}
                 <CampoTexto placeholder="Número" value={numero} onChangeText={setNumero} maxLength={15} />
                 <CampoTexto placeholder="Complemento (opcional)" value={complemento} onChangeText={setComplemento} maxLength={60} />
                 <CampoTexto placeholder="Bairro" value={bairro} onChangeText={setBairro} maxLength={60} />
