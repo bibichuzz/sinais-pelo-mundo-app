@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import MenuLateral from '../components/MenuLateral';
 import Botao from '../components/Botao';
 import Seletor from '../components/Seletor';
+import EstadoCarregamento from '../components/EstadoCarregamento';
 import ServicosPacote, { Paragrafo } from '../components/ServicosPacote';
 import ListaInclusos from '../components/ListaInclusos';
 import { useAppTheme } from '../theme/ThemeContext';
-import { detalhesExemplo as pacote } from '../data/detalhes';
+import { usePacote } from '../hooks/usePacotes';
+import { descricaoDoPacote, formatarPreco, inclusosDoPacote } from '../utils/formatar';
 
 const FORMAS = ['Débito', 'Crédito', 'Pix'];
 const PARCELAS = ['1', '2', '3', '4', '5', '6', '7', '8'];
@@ -17,11 +19,16 @@ const PARCELAS = ['1', '2', '3', '4', '5', '6', '7', '8'];
 export default function RevisaoCompra() {
   const { colors, fs } = useAppTheme();
   const router = useRouter();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { dados: pacote, carregando, erro, recarregar } = usePacote(Number(id));
   const [pagamento, setPagamento] = useState('Débito');
   const [parcelas, setParcelas] = useState('1');
 
   const voltar = () => (router.canGoBack() ? router.back() : router.replace('/'));
-  const irDetalhes = () => (router.canGoBack() ? router.back() : router.replace('/detalhes-pacote' as any));
+  const irDetalhes = () =>
+    router.canGoBack()
+      ? router.back()
+      : router.replace({ pathname: '/detalhes-pacote', params: { id: String(id) } } as any);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
@@ -45,66 +52,75 @@ export default function RevisaoCompra() {
             Confira os detalhes da sua compra antes de continuar.
           </Text>
 
-          <View style={[s.checkout, { borderColor: colors.borderSoft, backgroundColor: colors.surfaceAlt }]}>
-            {/* Imagem + título (aqui o título fica dentro do card) */}
-            <View style={[s.cardPrincipal, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
-              <View style={{ height: 180, backgroundColor: colors.mutedSurface }}>
-                {pacote.urlImagem ? (
-                  <Image source={{ uri: pacote.urlImagem }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                ) : null}
+          <EstadoCarregamento carregando={carregando} erro={erro} onTentar={recarregar} />
+
+          {pacote && (
+            <View style={[s.checkout, { borderColor: colors.borderSoft, backgroundColor: colors.surfaceAlt }]}>
+              {/* Imagem + título */}
+              <View style={[s.cardPrincipal, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
+                <View style={{ height: 180, backgroundColor: colors.mutedSurface }}>
+                  {pacote.urlImagem ? (
+                    <Image source={{ uri: pacote.urlImagem }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  ) : null}
+                </View>
+                <View style={{ padding: 10 }}>
+                  <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: fs(24), marginTop: 10, marginBottom: 15 }}>
+                    {pacote.destino}
+                  </Text>
+                  <Paragrafo>{descricaoDoPacote(pacote)}</Paragrafo>
+                </View>
               </View>
-              <View style={{ padding: 10 }}>
-                <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: fs(24), marginTop: 10, marginBottom: 15 }}>
-                  {pacote.titulo}
+
+              <ServicosPacote pacote={pacote} />
+
+              {/* Resumo da compra */}
+              <View style={{ padding: 20 }}>
+                <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: fs(18.72), marginBottom: 25 }}>
+                  Resumo da compra
                 </Text>
-                <Paragrafo>{pacote.descricao}</Paragrafo>
+                <Paragrafo>Preço por pessoa</Paragrafo>
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontWeight: 'bold',
+                    fontSize: fs(24),
+                    marginTop: 5,
+                    paddingBottom: 25,
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.borderSoft,
+                    marginBottom: 25,
+                  }}
+                >
+                  {formatarPreco(pacote.preco)}
+                </Text>
+
+                <ListaInclusos itens={inclusosDoPacote(pacote)} />
+
+                <View style={[s.total, { borderTopColor: colors.borderLight }]}>
+                  <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: fs(16) }}>Total</Text>
+                  <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: fs(16) }}>
+                    {formatarPreco(pacote.preco)}
+                  </Text>
+                </View>
+
+                <View style={{ gap: 15, marginTop: 15 }}>
+                  <Seletor rotulo="Forma de pagamento" opcoes={FORMAS} valor={pagamento} onChange={setPagamento} />
+                  <Seletor rotulo="Parcelas" opcoes={PARCELAS} valor={parcelas} onChange={setParcelas} />
+                </View>
+
+                <Botao
+                  titulo="IR PARA PAGAMENTO"
+                  variante="largo"
+                  onPress={() =>
+                    router.push({
+                      pathname: '/confirmacao-compra',
+                      params: { id: String(pacote.pacoteId), pagamento, parcelas },
+                    } as any)
+                  }
+                />
               </View>
             </View>
-
-            <ServicosPacote pacote={pacote} />
-
-            {/* Resumo da compra */}
-            <View style={{ padding: 20 }}>
-              <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: fs(18.72), marginBottom: 25 }}>
-                Resumo da compra
-              </Text>
-              <Paragrafo>Preço por pessoa</Paragrafo>
-              <Text
-                style={{
-                  color: colors.text,
-                  fontWeight: 'bold',
-                  fontSize: fs(24),
-                  marginTop: 5,
-                  paddingBottom: 25,
-                  borderBottomWidth: 1,
-                  borderBottomColor: colors.borderSoft,
-                  marginBottom: 25,
-                }}
-              >
-                {pacote.preco}
-              </Text>
-
-              <ListaInclusos itens={pacote.inclusos} />
-
-              <View style={[s.total, { borderTopColor: colors.borderLight }]}>
-                <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: fs(16) }}>Total</Text>
-                <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: fs(16) }}>{pacote.preco}</Text>
-              </View>
-
-              <View style={{ gap: 15, marginTop: 15 }}>
-                <Seletor rotulo="Forma de pagamento" opcoes={FORMAS} valor={pagamento} onChange={setPagamento} />
-                <Seletor rotulo="Parcelas" opcoes={PARCELAS} valor={parcelas} onChange={setParcelas} />
-              </View>
-
-              <Botao
-                titulo="IR PARA PAGAMENTO"
-                variante="largo"
-                onPress={() =>
-                  router.push({ pathname: '/confirmacao-compra', params: { pagamento, parcelas } } as any)
-                }
-              />
-            </View>
-          </View>
+          )}
         </View>
 
         <Footer />

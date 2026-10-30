@@ -5,17 +5,25 @@ import { useRouter } from 'expo-router';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import Chat from '../components/Chat';
+import EstadoCarregamento from '../components/EstadoCarregamento';
 import { useAppTheme } from '../theme/ThemeContext';
-import { PacoteCatalogo, catalogo, destinos, normalizar, precoSemCentavos } from '../data/catalogo';
+import { usePacotes } from '../hooks/usePacotes';
+import { PacoteResumo } from '../types/pacote';
+import { diasEntre, normalizar, precoSemCentavos } from '../utils/formatar';
 
-function CardCatalogo({ pacote }: { pacote: PacoteCatalogo }) {
+function CardCatalogo({ pacote }: { pacote: PacoteResumo }) {
   const { colors, fs } = useAppTheme();
   const router = useRouter();
+
+  const dias =
+    pacote.dataCheckin && pacote.dataCheckout
+      ? diasEntre(pacote.dataCheckin, pacote.dataCheckout)
+      : null;
 
   return (
     <Pressable
       onPress={() =>
-        router.push({ pathname: '/detalhes-pacote', params: { id: String(pacote.id) } } as any)
+        router.push({ pathname: '/detalhes-pacote', params: { id: String(pacote.pacoteId) } } as any)
       }
       style={({ pressed }) => [s.card, { borderColor: colors.borderInput, opacity: pressed ? 0.85 : 1 }]}
     >
@@ -28,9 +36,11 @@ function CardCatalogo({ pacote }: { pacote: PacoteCatalogo }) {
         <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: fs(17.6), marginBottom: 16 }}>
           {pacote.destino}
         </Text>
-        <Text style={{ color: colors.textSecondary, fontSize: fs(16), marginBottom: 8 }}>
-          {pacote.dias} dias / {pacote.dias - 1} noites
-        </Text>
+        {dias !== null && (
+          <Text style={{ color: colors.textSecondary, fontSize: fs(16), marginBottom: 8 }}>
+            {dias} dias / {dias - 1} noites
+          </Text>
+        )}
         <Text style={{ color: colors.textSecondary, fontSize: fs(16), marginBottom: 8 }}>
           A partir de {precoSemCentavos(pacote.preco)}
         </Text>
@@ -41,11 +51,15 @@ function CardCatalogo({ pacote }: { pacote: PacoteCatalogo }) {
 
 export default function Catalogo() {
   const { colors, fs } = useAppTheme();
+  const { pacotes, carregando, erro, recarregar } = usePacotes();
   const [busca, setBusca] = useState('');
   const [destino, setDestino] = useState<string | null>(null);
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
 
-  const lista = catalogo.filter(
+  // Destinos únicos vindos da API
+  const destinos = Array.from(new Set(pacotes.map((p) => p.destino)));
+
+  const lista = pacotes.filter(
     (p) =>
       (!destino || p.destino === destino) &&
       normalizar(p.destino).includes(normalizar(busca.trim())),
@@ -91,7 +105,7 @@ export default function Catalogo() {
             />
           </View>
 
-          {/* Filtros (no site ficam na lateral; no app abrem ao tocar) */}
+          {/* Filtros */}
           <Pressable style={s.filtroBotao} onPress={() => setFiltrosAbertos(!filtrosAbertos)}>
             <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: fs(16) }}>Filtros</Text>
             <MaterialIcons name="filter-alt" size={22} color={colors.text} />
@@ -129,16 +143,20 @@ export default function Catalogo() {
           )}
 
           {/* Lista */}
-          <View style={{ gap: 24, marginTop: 10 }}>
-            {lista.map((p) => (
-              <CardCatalogo key={p.id} pacote={p} />
-            ))}
-            {lista.length === 0 && (
-              <Text style={{ color: colors.textSecondary, fontSize: fs(16), textAlign: 'center' }}>
-                Nenhum pacote encontrado.
-              </Text>
-            )}
-          </View>
+          <EstadoCarregamento carregando={carregando} erro={erro} onTentar={recarregar} />
+
+          {!carregando && !erro && (
+            <View style={{ gap: 24, marginTop: 10 }}>
+              {lista.map((p) => (
+                <CardCatalogo key={p.pacoteId} pacote={p} />
+              ))}
+              {lista.length === 0 && (
+                <Text style={{ color: colors.textSecondary, fontSize: fs(16), textAlign: 'center' }}>
+                  Nenhum pacote encontrado.
+                </Text>
+              )}
+            </View>
+          )}
         </View>
 
         <Footer />

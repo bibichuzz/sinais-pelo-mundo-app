@@ -1,6 +1,6 @@
 import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import MenuLateral from '../components/MenuLateral';
@@ -10,6 +10,7 @@ import { useAppTheme } from '../theme/ThemeContext';
 export default function ConfirmacaoCompra() {
   const { colors, fs } = useAppTheme();
   const router = useRouter();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const { height } = useWindowDimensions();
   // TODO: com o backend, ler "pagamento" e "parcelas" (useLocalSearchParams) e gerar o QR Code real
 
@@ -26,8 +27,8 @@ export default function ConfirmacaoCompra() {
           <MenuLateral
             links={[
               { titulo: '< Voltar', onPress: voltar },
-              { titulo: 'Detalhes do pacote', onPress: () => router.push('/detalhes-pacote' as any) },
-              { titulo: 'Revisar compra', onPress: () => router.push('/revisao-compra' as any) },
+              { titulo: 'Detalhes do pacote', onPress: () => router.push({ pathname: '/detalhes-pacote', params: { id } } as any) },
+              { titulo: 'Revisar compra', onPress: () => router.push({ pathname: '/revisao-compra', params: { id } } as any) },
               { titulo: 'Sair', onPress: () => router.replace('/') },
             ]}
           />

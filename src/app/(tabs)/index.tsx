@@ -1,13 +1,13 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import Chat from '@/components/Chat';
 import PacoteCard from '@/components/PacoteCard';
-import { pacotes } from '@/data/pacotes';
 import { useAppTheme } from '@/theme/ThemeContext';
 import { proporcaoImagem } from '@/utils/imagem';
+import { useDestaques } from '@/hooks/usePacotes';
 
 const beneficios = [
   { icone: 'person', titulo: 'Intérpretes Qualificados', desc: 'Profissionais experientes e certificados.' },
@@ -20,6 +20,7 @@ export default function Home() {
   const { colors, isDark, fs } = useAppTheme();
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const { pacotes, carregando, erro, recarregar } = useDestaques();
 
   const banner = isDark
     ? require('@/assets/img/Logo-darkmode.png')
@@ -90,11 +91,29 @@ export default function Home() {
               </Pressable>
             </View>
 
-            <View style={{ gap: 24 }}>
-              {pacotes.map((p) => (
-                <PacoteCard key={p.pacoteId} pacote={p} />
-              ))}
-            </View>
+                        {carregando ? (
+              <View style={{ alignItems: 'center', gap: 12, paddingVertical: 24 }}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={{ color: colors.textSecondary, fontSize: fs(15.2), textAlign: 'center' }}>
+                  Carregando pacotes... Na primeira vez pode levar até 1 minuto.
+                </Text>
+              </View>
+            ) : erro ? (
+              <View style={{ alignItems: 'center', gap: 12, paddingVertical: 24 }}>
+                <Text style={{ color: colors.text, fontSize: fs(15.2), textAlign: 'center' }}>{erro}</Text>
+                <Pressable onPress={recarregar}>
+                  <Text style={{ color: colors.primary, fontWeight: 'bold', fontSize: fs(16) }}>
+                    Tentar novamente
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={{ gap: 24 }}>
+                {pacotes.map((p) => (
+                  <PacoteCard key={p.pacoteId} pacote={p} />
+                ))}
+              </View>
+            )}
           </View>
         </View>
 

@@ -2,7 +2,8 @@ import { ComponentProps, ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAppTheme } from '../theme/ThemeContext';
-import { DetalhesPacote } from '../data/detalhes';
+import { PacoteDetalhe } from '../types/pacote';
+import { formatarData, nomeTipoPassagem } from '../utils/formatar';
 
 type Icone = ComponentProps<typeof MaterialIcons>['name'];
 
@@ -48,27 +49,38 @@ function ServicoItem({ icone, titulo, children }: { icone: Icone; titulo: string
   );
 }
 
-// Hotel, passagem aérea e intérprete (usado em "Detalhes do pacote" e "Revisar compra")
-export default function ServicosPacote({ pacote }: { pacote: DetalhesPacote }) {
+// Hotel, passagem e intérprete (usado em "Detalhes do pacote" e "Revisar compra")
+export default function ServicosPacote({ pacote }: { pacote: PacoteDetalhe }) {
+  const { hotel, passagem, interprete } = pacote;
+  const aviao = passagem?.transporte === 'Aviao';
+
   return (
     <View>
-      <ServicoItem icone="hotel" titulo="Hotel">
-        <Paragrafo>{pacote.hotel.nome}</Paragrafo>
-        <LinhaIcone icone="location-on" endereco>{pacote.hotel.endereco}</LinhaIcone>
-      </ServicoItem>
+      {hotel && (
+        <ServicoItem icone="hotel" titulo="Hotel">
+          <Paragrafo>{hotel.nomeHotel}</Paragrafo>
+          <LinhaIcone icone="date-range">
+            Check-in: {formatarData(hotel.dataCheckin)} · Check-out: {formatarData(hotel.dataCheckout)}
+          </LinhaIcone>
+          <LinhaIcone icone="location-on" endereco>{hotel.enderecoHotel}</LinhaIcone>
+        </ServicoItem>
+      )}
 
-      <ServicoItem icone="flight" titulo="Passagem aérea">
-        <Paragrafo>{pacote.passagem.rota}</Paragrafo>
-        <LinhaIcone icone="date-range">
-          Ida: {pacote.passagem.ida} · Volta: {pacote.passagem.volta}
-        </LinhaIcone>
-        <Paragrafo>{pacote.passagem.classe}</Paragrafo>
-      </ServicoItem>
+      {passagem && (
+        <ServicoItem icone={aviao ? 'flight' : 'directions-bus'} titulo={aviao ? 'Passagem aérea' : 'Passagem de ônibus'}>
+          <Paragrafo>{passagem.localPartida} ➔ {passagem.localChegada}</Paragrafo>
+          <LinhaIcone icone="date-range">
+            Saída: {formatarData(passagem.horarioPartida)} · Chegada: {formatarData(passagem.horarioChegada)}
+          </LinhaIcone>
+          <Paragrafo>{nomeTipoPassagem(passagem.tipoPassagem)}</Paragrafo>
+        </ServicoItem>
+      )}
 
-      <ServicoItem icone="person" titulo="Intérprete">
-        <Paragrafo>{pacote.interprete.nome}</Paragrafo>
-        <LinhaIcone icone="call">{pacote.interprete.telefone}</LinhaIcone>
-      </ServicoItem>
+      {interprete && (
+        <ServicoItem icone="person" titulo="Intérprete">
+          <Paragrafo>{interprete.nomeInterprete}</Paragrafo>
+        </ServicoItem>
+      )}
     </View>
   );
 }
