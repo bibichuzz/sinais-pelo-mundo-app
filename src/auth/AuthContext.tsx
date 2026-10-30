@@ -6,10 +6,12 @@ import { Cliente } from '@/types/cliente';
 
 type AuthCtx = {
   logado: boolean;
-  iniciando: boolean; // true enquanto lê o token salvo no aparelho
+  iniciando: boolean;
   cliente: Cliente | null;
   entrar: (email: string, senha: string) => Promise<void>;
   sair: () => Promise<void>;
+  atualizarCliente: (c: Cliente) => void;
+  recarregarCliente: () => Promise<void>;
 };
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -25,14 +27,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setCliente(null);
   }, []);
 
-  // Quando a API responde 401 numa rota protegida (token vencido), desloga
   useEffect(() => {
     definirAoExpirar(() => {
       sair();
     });
   }, [sair]);
 
-  // Ao abrir o app: lê o token e, em segundo plano, confere com o servidor
   useEffect(() => {
     (async () => {
       const salvo = await obterToken();
@@ -43,7 +43,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           setCliente(await meusDados());
         } catch (e) {
-          // 401 já desloga pelo definirAoExpirar; erro de rede mantém o login
           if (!(e instanceof ApiError)) return;
         }
       }
@@ -57,8 +56,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setCliente(resposta.cliente);
   };
 
+  const recarregarCliente = async () => {
+    setCliente(await meusDados());
+  };
+
   return (
-    <Ctx.Provider value={{ logado: !!token, iniciando, cliente, entrar, sair }}>
+    <Ctx.Provider
+      value={{
+        logado: !!token,
+        iniciando,
+        cliente,
+        entrar,
+        sair,
+        atualizarCliente: setCliente,
+        recarregarCliente,
+      }}
+    >
       {children}
     </Ctx.Provider>
   );

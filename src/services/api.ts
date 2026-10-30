@@ -31,7 +31,7 @@ function extrairMensagem(json: any, status: number): string {
 }
 
 async function requisitar<T>(
-  metodo: 'GET' | 'POST',
+  metodo: 'GET' | 'POST' | 'PUT' | 'DELETE',
   caminho: string,
   corpo?: unknown,
   autenticado = false,
@@ -82,4 +82,12 @@ export function apiGet<T>(caminho: string, autenticado = false) {
 
 export function apiPost<T>(caminho: string, corpo: unknown, autenticado = false) {
   return requisitar<T>('POST', caminho, corpo, autenticado);
+}
+
+export function apiPut<T>(caminho: string, corpo: unknown, autenticado = false) {
+  return requisitar<T>('PUT', caminho, corpo, autenticado);
+}
+
+export function apiDelete<T>(caminho: string, autenticado = false) {
+  return requisitar<T>('DELETE', caminho, undefined, autenticado);
 }

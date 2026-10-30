@@ -24,8 +24,8 @@ export default function Header({ mostrarConta = true }: { mostrarConta?: boolean
 
   const sairDaConta = async () => {
     setMenuAberto(false);
-    await sair();
     router.replace('/');
+    await sair();
   };
 
   return (

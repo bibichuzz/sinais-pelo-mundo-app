@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from './api';
+import { apiDelete, apiGet, apiPost, apiPut } from './api';
 import { Cliente, LoginResposta } from '@/types/cliente';
 
 export type DadosCadastro = {
@@ -26,4 +26,17 @@ export function cadastrar(dados: DadosCadastro) {
 
 export function meusDados() {
   return apiGet<Cliente>('/clientes/me', true);
+}
+
+export type DadosAtualizacao = Omit<DadosCadastro, 'senha'> & {
+  senhaAtual: string | null;
+  novaSenha: string | null;
+};
+
+export function atualizarMeusDados(dados: DadosAtualizacao) {
+  return apiPut<Cliente>('/clientes/me', dados, true);
+}
+
+export function excluirMinhaConta() {
+  return apiDelete<{ mensagem: string }>('/clientes/me', true);
 }

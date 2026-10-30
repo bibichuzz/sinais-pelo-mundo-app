@@ -21,7 +21,7 @@ export default function RevisaoCompra() {
   const { colors, fs } = useAppTheme();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { logado, iniciando } = useAuth();
+  const { logado, iniciando, sair } = useAuth();
 
   useEffect(() => {
     if (!iniciando && !logado) {
@@ -39,6 +39,11 @@ export default function RevisaoCompra() {
       ? router.back()
       : router.replace({ pathname: '/detalhes-pacote', params: { id: String(id) } } as any);
 
+  const sairDaConta = async () => {
+     router.replace('/');
+     await sair();
+   };
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
       <Header mostrarConta={false} />
@@ -50,7 +55,7 @@ export default function RevisaoCompra() {
               { titulo: '< Voltar', onPress: voltar },
               { titulo: 'Detalhes do pacote', onPress: irDetalhes },
               { titulo: 'Revisar Compra', onPress: () => {}, atual: true },
-              { titulo: 'Sair', onPress: () => router.replace('/') },
+              { titulo: 'Sair', onPress: sairDaConta },
             ]}
           />
 

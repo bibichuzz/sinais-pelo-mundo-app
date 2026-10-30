@@ -1,14 +1,18 @@
-import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import MenuLateral from '../components/MenuLateral';
 import Botao from '../components/Botao';
+import EstadoCarregamento from '../components/EstadoCarregamento';
 import { useAppTheme } from '../theme/ThemeContext';
-import { Reserva, reservasExemplo } from '../data/reservas';
+import { useAuth } from '../auth/AuthContext';
+import { useExigirLogin } from '../auth/useExigirLogin';
+import { usePedidos } from '../hooks/usePedidos';
+import { cancelarPedido } from '../services/pedidoService';
+import { formatarData, formatarPreco } from '../utils/formatar';
+import { Pedido } from '../types/pedido';
 
-// ".botao-tipo3": 300 de largura, padding 15/20
 const estiloAcao = { width: '100%' as const, maxWidth: 300, paddingVertical: 15, paddingHorizontal: 20 };
 
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
@@ -21,16 +25,21 @@ function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
   );
 }
 
-function CardReserva({ reserva, cancelada }: { reserva: Reserva; cancelada: boolean }) {
+function CardReserva({ pedido }: { pedido: Pedido }) {
   const { colors, fs } = useAppTheme();
   const router = useRouter();
+  const cancelada = pedido.cancelado;
+
+  const periodo =
+    pedido.dataCheckin && pedido.dataCheckout
+      ? `${formatarData(pedido.dataCheckin)} a ${formatarData(pedido.dataCheckout)}`
+      : '-';
 
   return (
     <View
       style={[
         s.card,
         { backgroundColor: colors.surfaceAlt },
-        // .card-cancelado: faixa vermelha à esquerda e card mais apagado
         cancelada && { borderLeftWidth: 8, borderLeftColor: colors.dangerText, opacity: 0.8 },
       ]}
     >
@@ -43,18 +52,24 @@ function CardReserva({ reserva, cancelada }: { reserva: Reserva; cancelada: bool
       )}
 
       <Text style={{ color: colors.text, fontWeight: 'bold', fontSize: fs(24), marginBottom: 35 }}>
-        {reserva.destino}
+        {pedido.destino}
       </Text>
 
       <View style={{ gap: 20 }}>
-        <Linha rotulo="Destino" valor={reserva.destino} />
-        <Linha rotulo="Data da viagem" valor={reserva.data} />
-        <Linha rotulo="Valor pago" valor={reserva.valor} />
-        <Linha rotulo="Hotel" valor={reserva.hotel} />
-        <Linha rotulo="Intérprete" valor={reserva.interprete} />
+        <Linha rotulo="Pedido" valor={`#${pedido.pedidoId}`} />
+        <Linha rotulo="Data da viagem" valor={periodo} />
+        <Linha rotulo="Valor" valor={formatarPreco(pedido.preco)} />
+        <Linha rotulo="Hotel" valor={pedido.nomeHotel ?? '-'} />
+        <Linha rotulo="Intérprete" valor={pedido.nomeInterprete ?? '-'} />
+        <Linha rotulo="Pagamento" valor={pedido.dataPagamento ? 'Pago' : 'Pendente'} />
       </View>
 
-      <Pressable style={{ marginTop: 30 }} onPress={() => router.push('/detalhes-pacote' as any)}>
+      <Pressable
+        style={{ marginTop: 30 }}
+        onPress={() =>
+          router.push({ pathname: '/detalhes-pacote', params: { id: String(pedido.pacoteId) } } as any)
+        }
+      >
         <Text style={{ color: colors.text, fontSize: fs(16), textAlign: 'center', textDecorationLine: 'underline' }}>
           Mostrar detalhes
         </Text>
@@ -66,13 +81,19 @@ function CardReserva({ reserva, cancelada }: { reserva: Reserva; cancelada: bool
 export default function HistoricoReservas() {
   const { colors, fs } = useAppTheme();
   const router = useRouter();
-  const [canceladas, setCanceladas] = useState<number[]>([]);
+  useExigirLogin();
+  const { logado, sair } = useAuth();
+  const { pedidos, carregando, erro, recarregar } = usePedidos(logado);
 
   const voltar = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
+  const sairDaConta = async () => {
+    router.replace('/');
+    await sair();
+  };
+
   const gerarNota = () =>
-    // TODO: gerar a nota fiscal (PDF) quando o backend estiver disponível
-    Alert.alert('Nota fiscal', 'A geração da nota fiscal estará disponível quando o sistema estiver conectado.');
+    Alert.alert('Nota fiscal', 'A nota fiscal estará disponível em breve.');
 
   const cancelar = (id: number) =>
     Alert.alert('Cancelar reserva', 'Tem certeza que deseja cancelar esta reserva?', [
@@ -80,8 +101,14 @@ export default function HistoricoReservas() {
       {
         text: 'Cancelar reserva',
         style: 'destructive',
-        // TODO: chamar a API de cancelamento quando o backend estiver disponível
-        onPress: () => setCanceladas((c) => [...c, id]),
+        onPress: async () => {
+          try {
+            await cancelarPedido(id);
+            recarregar();
+          } catch (e: any) {
+            Alert.alert('Erro', e.message ?? 'Não foi possível cancelar.');
+          }
+        },
       },
     ]);
 
@@ -97,7 +124,7 @@ export default function HistoricoReservas() {
               { titulo: 'Página inicial', onPress: () => router.replace('/') },
               { titulo: 'Dados Pessoais', onPress: () => router.push('/dados-usuario' as any) },
               { titulo: 'Histórico de reservas', onPress: () => {}, atual: true },
-              { titulo: 'Sair', onPress: () => router.replace('/') },
+              { titulo: 'Sair', onPress: sairDaConta },
             ]}
           />
 
@@ -108,27 +135,34 @@ export default function HistoricoReservas() {
             Veja seu histórico de viagens
           </Text>
 
-          <View style={{ gap: 40 }}>
-            {reservasExemplo.map((r) => {
-              const cancelada = canceladas.includes(r.id);
-              return (
-                <View key={r.id}>
-                  <CardReserva reserva={r} cancelada={cancelada} />
+          <EstadoCarregamento carregando={carregando} erro={erro} onTentar={recarregar} />
+
+          {!carregando && !erro && pedidos.length === 0 && (
+            <Text style={{ color: colors.textSecondary, fontSize: fs(16), textAlign: 'center' }}>
+              Você ainda não fez nenhuma reserva.
+            </Text>
+          )}
+
+          {!carregando && !erro && (
+            <View style={{ gap: 40 }}>
+              {pedidos.map((p) => (
+                <View key={p.pedidoId}>
+                  <CardReserva pedido={p} />
 
                   <View style={{ alignItems: 'center', gap: 10, marginTop: 15 }}>
-                    {cancelada ? (
+                    {p.cancelado ? (
                       <Botao titulo="Reserva cancelada" variante="desativado" onPress={() => {}} style={estiloAcao} />
                     ) : (
                       <>
                         <Botao titulo="Gerar Nota Fiscal" variante="sucesso" onPress={gerarNota} style={estiloAcao} />
-                        <Botao titulo="Cancelar" variante="perigo" onPress={() => cancelar(r.id)} style={estiloAcao} />
+                        <Botao titulo="Cancelar" variante="perigo" onPress={() => cancelar(p.pedidoId)} style={estiloAcao} />
                       </>
                     )}
                   </View>
                 </View>
-              );
-            })}
-          </View>
+              ))}
+            </View>
+          )}
         </View>
 
         <Footer />

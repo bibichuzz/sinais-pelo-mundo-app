@@ -15,11 +15,16 @@ import { descricaoDoPacote, formatarPreco, inclusosDoPacote } from '../utils/for
 export default function DetalhesPacote() {
   const { colors, fs } = useAppTheme();
   const router = useRouter();
-  const { logado } = useAuth();
+  const { logado, sair } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { dados: pacote, carregando, erro, recarregar } = usePacote(Number(id));
 
   const voltar = () => (router.canGoBack() ? router.back() : router.replace('/'));
+
+  const sairDaConta = async () => {            // 2) cole a função aqui
+    router.replace('/');
+    await sair();
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.page }}>
@@ -31,7 +36,7 @@ export default function DetalhesPacote() {
             links={[
               { titulo: '< Voltar', onPress: voltar },
               { titulo: 'Detalhes do pacote', onPress: () => {}, atual: true },
-              { titulo: 'Sair', onPress: () => router.replace('/') },
+              { titulo: 'Sair', onPress: sairDaConta },
             ]}
           />
 
