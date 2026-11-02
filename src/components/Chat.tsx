@@ -1,32 +1,112 @@
 import { useRef, useState } from 'react';
+import { apiPost } from '../services/api';
 import {
-  Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+  type ScrollViewInstance,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAppTheme } from '../theme/ThemeContext';
+import { useRouter } from 'expo-router';
 
 type Msg = { id: number; de: 'user' | 'bot'; texto: string };
 
-const inicial: Msg[] = [
-  { id: 1, de: 'user', texto: 'Ótimo, quero viajar!' },
-  { id: 2, de: 'bot', texto: 'Que incrível!\nQual destino você tem em mente?' },
-];
+type MensagemHistorico = {
+  role: 'user' | 'model';
+  conteudo: string;
+};
+
+type RespostaChatbot = {
+  resposta: string;
+};
 
 export default function Chat() {
   const { colors, fs } = useAppTheme();
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const [aberto, setAberto] = useState(false);
-  const [mensagens, setMensagens] = useState<Msg[]>(inicial);
+  const [mensagens, setMensagens] = useState<Msg[]>([
+  {
+    id: 1,
+    de: 'bot',
+    texto: 'Olá! Eu sou o Safe, seu assistente virtual para viagens 👋 Para onde você gostaria de viajar?',
+  },
+]);
   const [texto, setTexto] = useState('');
-  const scroll = useRef<ScrollView>(null);
+  const [historico, setHistorico] = useState<MensagemHistorico[]>([]);
+  const [carregando, setCarregando] = useState(false);
+  const scroll = useRef<ScrollViewInstance>(null);
 
-  const enviar = () => {
-    const t = texto.trim();
-    if (!t) return;
-    setMensagens((m) => [...m, { id: Date.now(), de: 'user', texto: t }]);
-    setTexto('');
-    setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
+  
+const enviar = async () => {
+  const t = texto.trim();
+
+  if (!t || carregando) return;
+
+  const mensagemUsuario: Msg = {
+    id: Date.now(),
+    de: 'user',
+    texto: t,
   };
+
+  // Exibe a mensagem imediatamente
+  setMensagens((m) => [...m, mensagemUsuario]);
+  setTexto('');
+  setCarregando(true);
+
+  try {
+    // Envia a mensagem atual e o histórico anterior
+    const dados = await apiPost<RespostaChatbot>(
+      '/chatbot/mensagem',
+      {
+        mensagem: t,
+        historico: historico,
+      }
+    );
+
+    // Adiciona a resposta do Safe na tela
+    const respostaSafe: Msg = {
+      id: Date.now() + 1,
+      de: 'bot',
+      texto: dados.resposta,
+    };
+
+    setMensagens((m) => [...m, respostaSafe]);
+
+    // Atualiza o histórico da conversa
+    setHistorico((h) => [
+      ...h,
+      { role: 'user', conteudo: t },
+      { role: 'model', conteudo: dados.resposta },
+    ]);
+
+  } catch (erro: any) {
+    console.error('Erro no chatbot:', erro);
+
+    setMensagens((m) => [
+      ...m,
+      {
+        id: Date.now() + 1,
+        de: 'bot',
+        texto: erro.message || 'Não foi possível conectar ao Safe.',
+      },
+    ]);
+
+  } finally {
+    setCarregando(false);
+
+    setTimeout(() => {
+      scroll.current?.scrollToEnd({ animated: true });
+    }, 100);
+  }
+};
+
 
   // Botão flutuante (some enquanto o chat está aberto)
   if (!aberto) {
@@ -61,29 +141,71 @@ export default function Chat() {
       </View>
 
       {/* Mensagens */}
-      <ScrollView ref={scroll} style={s.mensagensWrap} contentContainerStyle={{ padding: 15 }}>
-        <Text style={{ color: colors.chatMessages, fontSize: fs(14), marginVertical: 4 }}>Olá! ✋</Text>
-        <Text style={{ color: colors.chatMessages, fontSize: fs(14), marginVertical: 4 }}>
-          Eu sou o <Text style={{ fontWeight: 'bold' }}>Safe</Text>, seu assistente de viagem!
-        </Text>
-        <Text style={{ color: colors.chatMessages, fontSize: fs(14), marginVertical: 4 }}>
-          Como posso te ajudar hoje?
-        </Text>
+<ScrollView
+  ref={scroll}
+  style={s.mensagensWrap}
+  contentContainerStyle={{ padding: 15 }}
+>
+  <View style={{ marginVertical: 15, gap: 8 }}>
+    {mensagens.map((m) => (
+  <View
+    key={m.id}
+    style={[
+      s.bolha,
+      {
+        backgroundColor: colors.border,
+        alignSelf: m.de === 'user' ? 'flex-end' : 'flex-start',
+      },
+    ]}
+  >
+    <View>
+      {m.texto.split(/(\/Pacote\/DetalhesPacote\/\d+)/g).map((parte, index) => {
+        const ehLink = /^\/Pacote\/DetalhesPacote\/\d+$/.test(parte);
 
-        <View style={{ marginVertical: 15, gap: 8 }}>
-          {mensagens.map((m) => (
-            <View
-              key={m.id}
-              style={[
-                s.bolha,
-                { backgroundColor: colors.border, alignSelf: m.de === 'user' ? 'flex-end' : 'flex-start' },
-              ]}
+        if (ehLink) {
+          const idPacote = parte.split('/').pop();
+
+          return (
+            <Text
+              key={index}
+              style={{
+                color: colors.buttonChatbot,
+                fontSize: fs(14),
+                fontWeight: 'bold',
+                textDecorationLine: 'underline',
+              }}
+              onPress={() =>
+                router.push({
+                  pathname: '/detalhes-pacote',
+                  params: { id: idPacote },
+                } as any)
+              }
             >
-              <Text style={{ color: colors.chatMessages, fontSize: fs(14) }}>{m.texto}</Text>
-            </View>
-          ))}
-        </View>
-      </ScrollView>
+              Ver detalhes do pacote
+            </Text>
+          );
+        }
+
+        return (
+          <Text
+            key={index}
+            style={{ color: colors.chatMessages, fontSize: fs(14) }}
+          >
+            {parte}
+          </Text>
+        );
+      })}
+    </View>
+  </View>
+))}
+
+    {carregando && (
+      <Text style={{ color: colors.chatMessages, fontSize: fs(13) }}>
+        Safe está digitando...
+      </Text>
+    )}
+  </View>
+</ScrollView>
 
       {/* Campo de envio */}
       <View style={[s.envio, { borderTopColor: colors.border }]}>
